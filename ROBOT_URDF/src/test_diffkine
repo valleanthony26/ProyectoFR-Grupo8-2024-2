@@ -1,0 +1,200 @@
+#!/usr/bin/env python2
+
+import rospy
+from sensor_msgs.msg import JointState
+import numpy as np
+from copy import copy
+from markers import *
+from robot_functions import *
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+if __name__ == '__main__':
+
+ # Initialize the node
+ rospy.init_node("testKinematicControlPosition")
+ print('starting motion ... ')
+ # Publisher: publish to the joint_states topic
+ pub = rospy.Publisher('joint_states', JointState, queue_size=10)
+ 
+ bmarker_current  = BallMarker(color['RED'])
+ bmarker_desired = BallMarker(color['GREEN'])
+ # Archivos donde se almacenara los datos
+ 
+ fxact = open("/home/anthony/lab_ws/src/frlabs/ROBOT_URDF/datos/xactual.txt", "w")
+ fxdes = open("/home/anthony/lab_ws/src/frlabs/ROBOT_URDF/datos/xdeseado.txt", "w")
+
+ # Joint names
+ jnames = ['joint_1', 'joint_2', 'joint_3','joint_4', 'joint_5', 'joint_6','joint_7','joint_8']
+ 
+ # Desired position
+ xd = np.array([-1 ,1.5,  1.6])
+ print("Posicion deseada: ")
+ print(xd)
+ # Initial configuration
+ q0 = np.array([0, 0, 0, 0, 0, 0,0,0])
+
+ # Resulting initial position (end effector with respect to the base link)
+ T = fkine(q0)
+ x0 = T[0:3,3]
+
+ # Red marker shows the achieved position
+ bmarker_current.xyz(x0)
+ # Green marker shows the desired position
+ bmarker_desired.xyz(xd)
+
+ # Instance of the JointState message
+ jstate = JointState()
+ # Values of the message
+ jstate.header.stamp = rospy.Time.now()
+ jstate.name = jnames
+ # Add the head joint value (with value 0) to the joints
+ jstate.position = q0
+
+ # Frequency (in Hz) and control period 
+ freq = 50
+ dt = 1.0/freq
+ rate = rospy.Rate(freq)
+ #valores maximas y minimas de las articulaciones
+ joint1_min=0
+ joint1_max=6.283
+ joint2_min=-1.57
+ joint2_max=1.57
+ joint3_min=-3.142
+ joint3_max=0.785
+ joint4_min=-1.57
+ joint4_max=1.57
+ joint5_min=0
+ joint5_max=0.4
+ joint6_min=-4.04
+ joint6_max=0.785 
+
+ # Initial joint configuration
+ q = copy(q0)
+
+
+ # Lists to store position data
+ time_list = []
+ x_list = []
+ y_list = []
+ z_list = []
+
+# Setpoint lists
+ xd_x_list = []
+ xd_y_list = []
+ xd_z_list = []
+ q_list = []
+ start_time = rospy.Time.now().to_sec()
+ # Main loop
+ while not rospy.is_shutdown():
+  # Current time (needed for ROS)
+  q_list.append(q.copy())
+  current_time = rospy.Time.now().to_sec() - start_time
+  jstate.header.stamp = rospy.Time.now()
+  # Kinematic control law for position (complete here)
+  T = fkine(q)
+  x = T[0:3, 3]
+  e = x-xd
+  k = 5
+  x_dot = -k * e
+  J = jacobian(q)
+
+  J_pseudo_inverse = np.linalg.pinv(J)
+  q_dot = np.dot(J_pseudo_inverse,x_dot)
+  q = q + q_dot * dt
+  q[1] = max(min(q[1], joint2_max), joint2_min);
+  q[2] = max(min(q[2], joint3_max), joint3_min);
+  q[3] = max(min(q[3], joint4_max), joint4_min);
+  q[4] = max(min(q[4], joint5_max), joint5_min);
+  q[5] = max(min(q[5], joint6_max), joint6_min);        
+   
+  # Publish the message
+  jstate.position = q
+  pub.publish(jstate)
+  bmarker_desired.xyz(xd)
+  bmarker_current.xyz(x)
+  time_list.append(current_time)
+  x_list.append(x[0])
+  y_list.append(x[1])
+  z_list.append(x[2])
+
+  xd_x_list.append(xd[0])
+  xd_y_list.append(xd[1])
+  xd_z_list.append(xd[2])
+
+
+  fxact.write(str(q[0])+' '+str(q[1])+' '+str(q[2])+' '+str(q[3])+' '+str(q[4])+' '+str(q[5])+'\n')
+  fxdes.write(str(x[0])+' '+str(x[1])+' '+str(x[2])+'\n')
+
+  if (np.linalg.norm(e)<0.01):
+    print("Posicion alcanzada: ")
+    print(x)
+    break
+
+  # Wait for the next iteration
+  rate.sleep()
+
+ print('ending motion ...')
+ 
+ plt.figure(figsize=(4, 6))
+ plt.subplot(3, 1, 1)
+ plt.plot(time_list, x_list, label='x actual') 
+ plt.plot(time_list, xd_x_list, '--', label='x setpoint') 
+ plt.xlabel('Tiempo (s)')
+ plt.ylabel('Posicion (m)')
+ plt.title('Posicion (x) vs Tiempo')
+ plt.legend()
+ plt.grid()
+ 
+
+ plt.subplot(3, 1, 2)
+ plt.plot(time_list, y_list, label='y actual')
+ plt.plot(time_list, xd_y_list, '--', label='y setpoint')
+ plt.xlabel('Tiempo (s)')
+ plt.ylabel('Posicion (m)')
+ plt.title('Posicion (y) vs Tiempo')
+ plt.legend()
+ plt.grid()
+ 
+
+ plt.subplot(3, 1, 3)
+ plt.plot(time_list, z_list, label='z actual')
+ plt.plot(time_list, xd_z_list, '--', label='z setpoint')
+ plt.xlabel('Tiempo (s)')
+ plt.ylabel('Posicion (m)')
+ plt.title('Posicion (z) vs Tiempo')
+ plt.legend()
+ plt.grid()
+ plt.tight_layout()
+ plt.show()
+
+ 
+ 
+ 
+ 
+
+ fig = plt.figure()
+ ax = fig.add_subplot(111, projection='3d')
+ ax.plot(x_list, y_list, z_list, label='Trayectoria', color='blue')
+ ax.scatter(x_list[-1], y_list[-1], z_list[-1], color='red', label='Punto final alcanzado', s=50)
+ ax.scatter(xd[0], xd[1], xd[2], color='green', label='Setpoint', s=50)
+ ax.set_xlabel('X')
+ ax.set_ylabel('Y')
+ ax.set_zlabel('Z')
+ ax.set_title('Trayectoria en 3D')
+ ax.legend()
+ plt.show()
+
+ plt.figure()
+ for i in range(6):
+   plt.plot(time_list, [q[i] for q in q_list], label='Joint {}'.format(i + 1))
+ plt.xlabel('Tiempo (s)')
+ plt.ylabel('Valor de las articulaciones (rad)')
+ plt.title('Valores q vs Tiempo')
+ plt.legend()
+ plt.grid()
+ plt.show()
+
+
+
+

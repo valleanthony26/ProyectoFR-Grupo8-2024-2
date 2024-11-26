@@ -1,0 +1,8 @@
+gazebo_ros_control/pid_gains/joint_1: {p: 20000.0, i: 500.0, d: 3000.0}
+gazebo_ros_control/pid_gains/joint_2: {p: 25000.0, i: 500.0, d: 3000.0}
+gazebo_ros_control/pid_gains/joint_3: {p: 24500.0, i: 500.0, d: 3000.0}
+gazebo_ros_control/pid_gains/joint_4: {p: 20000.0, i: 500.0, d: 3000.0}
+gazebo_ros_control/pid_gains/joint_5: {p: 20500.0, i: 500.0, d: 3900.0}
+gazebo_ros_control/pid_gains/joint_6: {p: 18000.0, i: 500.0, d: 3900.0}
+gazebo_ros_control/pid_gains/joint_7: {p: 500.0, i: 100, d: 100}
+gazebo_ros_control/pid_gains/joint_8: {p: 500.0, i: 100, d: 100}
